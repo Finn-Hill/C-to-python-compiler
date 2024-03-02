@@ -1,0 +1,87 @@
+%{
+    #include <string>
+    #include <iostream>
+    #include <fstream>
+    #include "FALexer.hh"
+
+    #undef YY_DECL
+    #define YY_DECL int FALexer::yylex(void)
+
+    #define YY_USER_ACTION process(yytext);
+
+    #define yyterminate() return 0
+    #define YY_NO_UNISTD_H
+
+    std::string remove_EOLNs(std::string txt) {
+        int ending = txt.length();
+        while (txt[ending-1] == '\r' || txt[ending-1] == '\n') {
+            ending--;
+        }
+        return txt.substr(0,ending);
+    }
+
+    void FALexer::process(std::string txt) {
+        current = current + txt;
+    }
+
+    void FALexer::report(bool accepted) {
+        std::cout << remove_EOLNs(current) << " ";
+        if (accepted) {
+            std::cout << " YES";
+        } else {
+            std::cout << " NO";
+        }
+        std::cout << std::endl;
+        current = "";
+        BEGIN(0);
+    }
+
+%}
+
+%option debug
+%option nodefault
+%option noyywrap
+%option yyclass="Lexer"
+%option c++
+
+%s ZEROOONEE ONEOZEROE ZEROOONEO
+
+EOLN    \r\n|\n\r|\n|\r
+
+%%
+
+%{
+
+%}
+
+<INITIAL>1     { BEGIN(ONEOZEROE); }
+<INITIAL>0     { BEGIN(ZEROOONEE); }
+<ZEROOONEE>0      { BEGIN(INITIAL); }
+<ZEROOONEE>1      { BEGIN(ZEROOONEO);}
+<ONEOZEROE>1       { BEGIN(INITIAL); }
+<ONEOZEROE>0       {BEGIN(ZEROOONEO); }
+<ZEROOONEO>1      {BEGIN(ZEROOONEE); }
+<ZEROOONEO>0      {BEGIN(ONEOZEROE); }
+<ZEROOONEE>{EOLN} {report(false); }
+<ONEOZEROE>{EOLN} {report(false); }
+<ZEROOONEO>{EOLN} {report(false); }
+<*>{EOLN}      { report(true); }
+
+<<EOF>> {
+    return 0;
+}
+
+. {
+    std::string txt { yytext };
+    std::cerr << "Unexpected \"" << txt << "\" in input." << std::endl;
+    return -1;
+}
+
+%%
+
+int main(int argc, char** argv) {
+    std::string src_name { argv[1] };
+    std::ifstream ins { src_name };
+    FALexer lexer { &ins };
+    return lexer.yylex();
+}
